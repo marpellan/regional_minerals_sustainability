@@ -30,6 +30,7 @@ def get_inventory_dataset(inventories, database_name):
 
 
 ### Ore grade ###
+
 def ore_grade_decline(t, a, b):
     """
     Calculate the ore grade at a given time based on a power regression model.
