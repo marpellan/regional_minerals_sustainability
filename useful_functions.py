@@ -4,11 +4,11 @@ import bw2data as bd
 import bw2io as bi
 import brightway2 as bw
 import pandas as pd
+import numpy as np
 import datetime
 
 
 ### LCI ###
-
 def get_inventory_dataset(inventories, database_name):
     """
     Function to find the dataset in the specified database
@@ -30,7 +30,6 @@ def get_inventory_dataset(inventories, database_name):
 
 
 ### Ore grade ###
-
 def ore_grade_decline(t, a, b):
     """
     Calculate the ore grade at a given time based on a power regression model.
@@ -44,13 +43,6 @@ def ore_grade_decline(t, a, b):
     - float or np.array: Estimated ore grade at time t.
     """
     return a * (t ** b)
-
-# Example usage:
-a_example = 2.0e43  # Example value (specific to the mineral)
-b_example = -13.68  # Example value (defines the decline rate)
-time = 2024         # Example year for prediction
-ore_grade = ore_grade_decline(time, a_example, b_example)
-print(f"Ore grade at year {time}: {ore_grade}")
 
 
 def energy_ore_grade(ore_grade, r, q):
@@ -67,16 +59,6 @@ def energy_ore_grade(ore_grade, r, q):
     """
     return r * np.power(ore_grade, q)
 
-# Example values for r and q (these should be replaced with metal-specific constants)
-r_example = 198.22   # Example value for a specific metal (e.g., nickel values from Van der Voet et al 2019)
-q_example = -0.406   # Example value for the same metal
-
-# Test the function with a sample ore grade
-sample_ore_grade = 0.0015  # 0.15%
-energy_req = energy_ore_grade(sample_ore_grade, r_example, q_example)
-
-print(f"Energy requirement for ore grade {sample_ore_grade}: {energy_req} MJ/kg")
-
 
 def future_energy_requirement(t, c, d):
     """
@@ -92,13 +74,6 @@ def future_energy_requirement(t, c, d):
     """
     return c * (t ** d)
 
-# Example usage:
-c_example = 5.21e-16  # Example value for baseline energy requirement (specific to mineral)
-d_example = 5.55      # Example exponent for growth over time
-time_future = 2050    # Future year for prediction
-future_energy = future_energy_requirement(time_future, c_example, d_example)
-print(f"Energy requirement in year {time_future}: {future_energy} MJ/kg")
-
 
 def percentage_change_energy(E_t, E_0):
     """
@@ -113,12 +88,6 @@ def percentage_change_energy(E_t, E_0):
     """
     return (E_t - E_0) / E_0
 
-# Example usage:
-E_base = 100  # Baseline energy requirement in MJ/kg
-E_future = 150  # Future energy requirement in MJ/kg
-percent_change = percentage_change_energy(E_future, E_base)
-print(f"Percentage change in energy requirements: {percent_change * 100:.2f}%")
-
 
 def modeling_factor(E_0, E_t):
     """
@@ -132,20 +101,6 @@ def modeling_factor(E_0, E_t):
     - float or np.array: Modeling factor for scaling energy in LCA.
     """
     return E_0 / E_t
-
-# Example usage:
-E_base_example = 100  # Baseline energy requirement in MJ/kg
-E_future_example = 120  # Projected energy requirement in MJ/kg
-gamma_factor = modeling_factor(E_base_example, E_future_example)
-print(f"Modeling factor for LCA scaling: {gamma_factor}")
-
-
-
-
-
-
-
-
 
 
 ### LCA calculations ###
