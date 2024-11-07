@@ -6,6 +6,7 @@ import brightway2 as bw
 import pandas as pd
 import numpy as np
 import datetime
+import math # for pedigree matrix
 
 
 ### LCI ###
@@ -27,6 +28,61 @@ def get_inventory_dataset(inventories, database_name):
         else:
             print(f"No match found for {rm_name} in {database_name}")
     return inventory_ds
+
+
+def create_pedigree_matrix(pedigree_scores: tuple, exc_amount: float):
+    """
+    Function from Istrate et al (2024)
+
+    This function returns a dict containing the pedigree matrix dict and loc and scale values
+    that can be used to update exchanges in a dataset dict
+
+    The pedigree matrix dictionary is created using the scores provided in the LCI Excel file.
+
+    The code to calcualte the loc and scale values is based on https://github.com/brightway-lca/pedigree_matrix,
+    which is published by Chris Mutel under an BSD 3-Clause License (2021).
+
+    :param pedigree_scores: tuple of pedigree scores
+    :param exc_amount: exchange amount
+    :return dict:
+    """
+
+    VERSION_2 = {
+        "reliability": (1.0, 1.54, 1.61, 1.69, 1.69),
+        "completeness": (1.0, 1.03, 1.04, 1.08, 1.08),
+        "temporal correlation": (1.0, 1.03, 1.1, 1.19, 1.29),
+        "geographical correlation": (1.0, 1.04, 1.08, 1.11, 1.11),
+        "further technological correlation": (1.0, 1.18, 1.65, 2.08, 2.8),
+        "sample size": (1.0, 1.0, 1.0, 1.0, 1.0),
+    }
+
+    pedigree_scores_dict = {
+        'reliability': pedigree_scores[0],
+        'completeness': pedigree_scores[1],
+        'temporal correlation': pedigree_scores[2],
+        'geographical correlation': pedigree_scores[3],
+        'further technological correlation': pedigree_scores[4]
+    }
+
+    assert len(pedigree_scores) in (5, 6), "Must provide either 5 or 6 factors"
+    if len(pedigree_scores) == 5:
+        pedigree_scores = pedigree_scores + (1,)
+
+    factors = [VERSION_2[key][index - 1] for key, index in pedigree_scores_dict.items()]
+
+    basic_uncertainty: float = 1.0
+    values = [basic_uncertainty] + factors
+
+    scale = math.sqrt(sum([math.log(x) ** 2 for x in values])) / 2
+    loc = math.log(abs(exc_amount))
+
+    pedigree_dict = {
+        'uncertainty type': 2,
+        'loc': loc,
+        'scale': scale,
+        "pedigree": pedigree_scores_dict,
+    }
+    return pedigree_dict
 
 
 ### Ore grade ###

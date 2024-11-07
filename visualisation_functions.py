@@ -2,20 +2,31 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import numpy as np
+import random
+import pandas as pd
+import matplotlib.pyplot as plt
+import random
 
-def plot_multilca_impacts(df, impact_categories, colors, save_path=None):
+
+def plot_multilca_impacts(df, colors=None, save_path=None):
     """
-    Visualize LCA impacts for each category with specified colors and save the plot if a path is provided.
+    Visualize LCA impacts for each category with specified or random colors and save the plot if a path is provided.
 
     Parameters:
     - df (pd.DataFrame): DataFrame with raw materials as index and impact categories as columns.
-    - impact_categories (list of str): List of impact categories (column names) to plot.
-    - colors (list of str): List of colors for each impact category.
+    - colors (list of str): List of colors for each impact category. If None, random colors will be used.
     - save_path (str, optional): Path to save the plot image. If None, the plot will only display.
     """
     # Ensure 'Raw material' is a column by resetting the index
     df = df.reset_index()
     df.rename(columns={'index': 'Raw material'}, inplace=True)
+
+    # Extract impact categories as all columns except 'Raw material'
+    impact_categories = [col for col in df.columns if col != 'Raw material']
+
+    # Generate random colors if none are provided
+    if colors is None:
+        colors = ['#%06X' % random.randint(0, 0xFFFFFF) for _ in impact_categories]
 
     # Check that the number of colors matches the number of impact categories
     if len(colors) != len(impact_categories):
@@ -24,7 +35,7 @@ def plot_multilca_impacts(df, impact_categories, colors, save_path=None):
     # Set up the figure with subplots
     plt.figure(figsize=(14, 10))
 
-    # Create a bar plot for each impact category with specified colors
+    # Create a bar plot for each impact category with specified or random colors
     for i, (impact, color) in enumerate(zip(impact_categories, colors), 1):
         plt.subplot(2, 2, i)
         plt.bar(df["Raw material"], df[impact], color=color, label=impact)
@@ -41,7 +52,7 @@ def plot_multilca_impacts(df, impact_categories, colors, save_path=None):
         plt.show()
 
 
-def plot_contribution_analysis(df, inventory_names, colors, save_dir="results"):
+def plot_contribution_analysis(df, inventory_names, colors=None, save_dir="results"):
     """
     Plot contribution analysis for multiple inventories with consistent colors for impact categories
     and opacity based on score magnitude, sorted by contribution. Each plot is saved separately.
@@ -102,8 +113,118 @@ def plot_contribution_analysis(df, inventory_names, colors, save_dir="results"):
         plt.close(fig)  # Close the figure to free up memory
 
 
-def plot_impacts_with_production(projected_df, production_df, impact_categories, save_dir="results",
-                                         scenario_name=None):
+def plot_iwplus_contributions(df, save_path_eco=None, save_path_hh=None):
+    """
+    Plot separate bar charts for ecosystem quality and human health impact contributions
+    with legends displayed below each chart, and save the images if paths are provided.
+
+    Parameters:
+    - df (pd.DataFrame): DataFrame with raw materials as index and impact contributions as columns.
+    - save_path_eco (str, optional): Path to save the ecosystem quality plot.
+    - save_path_hh (str, optional): Path to save the human health plot.
+
+    Returns:
+    - None: Displays the plots and optionally saves them.
+    """
+
+    df = df.reset_index()
+    df.rename(columns={'index': 'Raw material'}, inplace=True)
+
+    # Identify columns for ecosystem quality and human health
+    ecosystem_quality_cols = [col for col in df.columns if
+                              col.endswith("(PDF.m2.yr)") and col != "Total ecosystem quality (PDF.m2.yr)"]
+    human_health_cols = [col for col in df.columns if col.endswith("(DALY)") and col != "Total human health (DALY)"]
+
+    # Calculate the % impact for each contributor
+    for col in ecosystem_quality_cols:
+        df[f"{col} (%)"] = (df[col] / df["Total ecosystem quality (PDF.m2.yr)"]) * 100
+
+    for col in human_health_cols:
+        df[f"{col} (%)"] = (df[col] / df["Total human health (DALY)"]) * 100
+
+    # Prepare data for plotting
+    df_human_health_plot = df[["Raw material"] + [f"{col} (%)" for col in human_health_cols]].set_index("Raw material")
+    df_ecosystem_quality_plot = df[["Raw material"] + [f"{col} (%)" for col in ecosystem_quality_cols]].set_index("Raw material")
+
+    # Plot for ecosystem quality contributions (should sum to 100%)
+    fig_eco, ax_eco = plt.subplots(figsize=(14, 8))
+    df_ecosystem_quality_plot.plot(
+        kind='bar', stacked=True, colormap='viridis', ax=ax_eco, legend=False
+    )
+    ax_eco.set_title("Ecosystem Quality Impact")
+    ax_eco.set_ylabel("Impact Contribution (%)")
+    ax_eco.set_xlabel("")
+    ax_eco.set_ylim(0, 100)
+    handles_eco, labels_eco = ax_eco.get_legend_handles_labels()
+    fig_eco.legend(handles_eco, labels_eco, loc='upper center', ncol=4, bbox_to_anchor=(0.5, -0.05))
+    plt.tight_layout()
+    if save_path_eco:
+        plt.savefig(save_path_eco, bbox_inches='tight')
+    plt.show()
+
+    # Plot for human health contributions (should sum to 100%)
+    fig_hh, ax_hh = plt.subplots(figsize=(14, 8))
+    df_human_health_plot.plot(
+        kind='bar', stacked=True, colormap='plasma', ax=ax_hh, legend=False
+    )
+    ax_hh.set_title("Human Health Impact")
+    ax_hh.set_ylabel("Impact Contribution (%)")
+    ax_hh.set_xlabel("")
+    ax_hh.set_ylim(0, 100)
+    handles_hh, labels_hh = ax_hh.get_legend_handles_labels()
+    fig_hh.legend(handles_hh, labels_hh, loc='upper center', ncol=4, bbox_to_anchor=(0.5, -0.05))
+    plt.tight_layout()
+    if save_path_hh:
+        plt.savefig(save_path_hh, bbox_inches='tight')
+    plt.show()
+
+
+### Demand-related LCA ###
+def plot_scenario_production_comparison(df1, df2, save_path=None):
+    # Plotting with unified colors and separate legends for line styles
+    plt.figure(figsize=(14, 8))
+
+    # Unique minerals for color coding
+    unique_minerals = df1['Mineral'].unique()
+    colors = plt.cm.get_cmap('tab20', len(unique_minerals)).colors
+
+    # Plot each mineral with the same color for both dataframes
+    for i, mineral in enumerate(unique_minerals):
+        # Filter data for each mineral
+        df1_mineral = df1[df1['Mineral'] == mineral]
+        df2_mineral = df2[df2['Mineral'] == mineral]
+
+        # Plotting solid line for df1
+        plt.plot(df1_mineral['Year'], df1_mineral['Value'], label=f"{mineral}", color=colors[i])
+
+        # Plotting dashed line for df2
+        plt.plot(df2_mineral['Year'], df2_mineral['Value'], linestyle='--', color=colors[i])
+
+    # Adding titles and labels
+    plt.title("Existing production and production potential scenarios")
+    plt.xlabel("")
+    plt.ylabel("Production (kilotonnes)")
+
+    # Create custom legends for line types
+    solid_line = plt.Line2D([0], [0], color='black', linewidth=4, label='Existing production (df1)')
+    dashed_line = plt.Line2D([0], [0], color='black', linewidth=4, linestyle='--', label='Production potential (df2)')
+    plt.legend(handles=[solid_line, dashed_line], loc='upper left')
+
+    # Adding mineral legend separately
+    plt.legend(title="", loc='upper left')
+
+    # Save the figure if a path is provided
+    if save_path:
+        plt.savefig(save_path, format='png', dpi=300, bbox_inches='tight')
+
+    # Show plot
+    plt.show()
+
+
+def plot_production_impacts(projected_df, production_df,
+                                 impact_categories,
+                                 save_dir="results/demand_lca_results",
+                                 scenario_name=None):
     '''
     Function to plot projected impacts for each impact category as stacked bars with production volume as lines.
 
@@ -158,10 +279,14 @@ def plot_impacts_with_production(projected_df, production_df, impact_categories,
         ax1.set_title(f"{category} impact by mineral for {scenario_name}")
 
     # Add legends outside the subplots
-    fig.legend([plt.Line2D([0], [0], color=color, lw=4) for color in colors[:len(minerals)]],
-               minerals, loc="upper center", ncol=len(minerals), title="Minerals")
+    handles = [plt.Line2D([0], [0], color=color, lw=4) for color in colors[:len(minerals)]]
+    labels = minerals
+    fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.05), ncol=len(minerals), fontsize=10,
+                   title="Minerals")
+
+    # Legend for the dashed production line
     fig.legend([plt.Line2D([0], [0], color='black', linestyle='--', lw=2, alpha=0.6)],
-               ['Production'], loc="upper right", title="")
+                   ['Production'], loc="lower center", bbox_to_anchor=(0.5, -0.1), fontsize=10, title="Line Style")
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust layout to make space for the legend
 
@@ -175,7 +300,7 @@ def plot_impacts_with_production(projected_df, production_df, impact_categories,
 
 def plot_incremental_impacts(projected_impacts_existing, projected_impacts_potential,
                              production_existing, production_potential, impact_categories,
-                             save_dir="results", scenario_name="incremental"):
+                             save_dir="results/demand_lca_results", scenario_name="incremental"):
     '''
     Function to calculate and plot incremental impacts as stacked bars and production volumes as lines.
 
