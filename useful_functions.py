@@ -10,23 +10,28 @@ import math # for pedigree matrix
 
 
 ### LCI ###
-def get_inventory_dataset(inventories, database_name):
+def get_inventory_dataset(inventories, database_names):
     """
-    Function to find the dataset in the specified database
+    Function to find the dataset in the specified databases.
     """
     inventory_ds = {}
     for rm_name, (activity_name, ref_product, location) in inventories.items():
-        # Search in the specified database
-        db = bw.Database(database_name)
-        matches = [ds for ds in db if ds["name"] == activity_name
-                   and ds["reference product"] == ref_product
-                   and ds["location"] == location]
+        match_found = False
 
-        # If a match is found, add to dictionary
-        if matches:
-            inventory_ds[rm_name] = matches[0]
-        else:
-            print(f"No match found for {rm_name} in {database_name}")
+        # Iterate over the list of database names
+        for database_name in database_names:
+            db = bw.Database(database_name)
+            matches = [ds for ds in db if ds["name"] == activity_name
+                       and ds["reference product"] == ref_product
+                       and ds["location"] == location]
+
+            if matches:
+                inventory_ds[rm_name] = matches[0]
+                match_found = True
+                break  # Stop searching once a match is found
+
+        if not match_found:
+            print(f"No match found for {rm_name} in provided databases")
     return inventory_ds
 
 
@@ -85,87 +90,15 @@ def create_pedigree_matrix(pedigree_scores: tuple, exc_amount: float):
     return pedigree_dict
 
 
-### Ore grade ###
-def ore_grade_decline(t, a, b):
-    """
-    Calculate the ore grade at a given time based on a power regression model.
-
-    Parameters:
-    - t (float or np.array): Time in years (e.g., since a baseline year).
-    - a (float): Constant for the initial ore grade level.
-    - b (float): Exponent that defines the rate of ore grade decline.
-
-    Returns:
-    - float or np.array: Estimated ore grade at time t.
-    """
-    return a * (t ** b)
-
-
-def energy_ore_grade(ore_grade, r, q):
-    """
-    Calculate the energy requirement based on ore grade.
-
-    Parameters:
-    - ore_grade (float or np.array): The ore grade value(s), e.g., in percentage or fraction.
-    - r (float): Constant for energy-ore grade relation, specific to the metal.
-    - q (float): Exponent that defines sensitivity of energy to ore grade changes.
-
-    Returns:
-    - float or np.array: Energy requirement (MJ/kg) based on ore grade.
-    """
-    return r * np.power(ore_grade, q)
-
-
-def future_energy_requirement(t, c, d):
-    """
-    Calculate the energy requirement over time as ore grades decline.
-
-    Parameters:
-    - t (float or np.array): Time in years (e.g., years since baseline).
-    - c (float): Constant for the initial energy requirement.
-    - d (float): Exponent that defines the growth of energy requirements over time.
-
-    Returns:
-    - float or np.array: Projected energy requirement (MJ/kg) at time t.
-    """
-    return c * (t ** d)
-
-
-def percentage_change_energy(E_t, E_0):
-    """
-    Calculate the percentage change in energy requirements over time.
-
-    Parameters:
-    - E_t (float or np.array): Future energy requirement (MJ/kg) at time t.
-    - E_0 (float): Baseline energy requirement (MJ/kg) at a reference year.
-
-    Returns:
-    - float or np.array: Percentage increase in energy requirements relative to baseline.
-    """
-    return (E_t - E_0) / E_0
-
-
-def modeling_factor(E_0, E_t):
-    """
-    Calculate the modeling factor to scale energy requirements in LCA models.
-
-    Parameters:
-    - E_0 (float): Baseline energy requirement (MJ/kg) at the reference year.
-    - E_t (float or np.array): Future energy requirement (MJ/kg) at time t.
-
-    Returns:
-    - float or np.array: Modeling factor for scaling energy in LCA.
-    """
-    return E_0 / E_t
-
-
 ### LCA calculations ###
-def init_simple_lca(activity, method=None):
+def init_simple_lca(activity):
     """
     Initialize simple LCA object
     """
     lca = bw.LCA({activity.key: 1})
     lca.lci()
+    #lca.lcia()
+    #lca.score
 
     return lca
 
@@ -278,3 +211,77 @@ def calculate_projected_impacts(production_df, impact_df, mapping):
     projected_impacts_df = pd.DataFrame(projections)
 
     return projected_impacts_df
+
+
+### Ore grade ###
+def ore_grade_decline(t, a, b):
+    """
+    Calculate the ore grade at a given time based on a power regression model.
+
+    Parameters:
+    - t (float or np.array): Time in years (e.g., since a baseline year).
+    - a (float): Constant for the initial ore grade level.
+    - b (float): Exponent that defines the rate of ore grade decline.
+
+    Returns:
+    - float or np.array: Estimated ore grade at time t.
+    """
+    return a * (t ** b)
+
+
+def energy_ore_grade(ore_grade, r, q):
+    """
+    Calculate the energy requirement based on ore grade.
+
+    Parameters:
+    - ore_grade (float or np.array): The ore grade value(s), e.g., in percentage or fraction.
+    - r (float): Constant for energy-ore grade relation, specific to the metal.
+    - q (float): Exponent that defines sensitivity of energy to ore grade changes.
+
+    Returns:
+    - float or np.array: Energy requirement (MJ/kg) based on ore grade.
+    """
+    return r * np.power(ore_grade, q)
+
+
+def future_energy_requirement(t, c, d):
+    """
+    Calculate the energy requirement over time as ore grades decline.
+
+    Parameters:
+    - t (float or np.array): Time in years (e.g., years since baseline).
+    - c (float): Constant for the initial energy requirement.
+    - d (float): Exponent that defines the growth of energy requirements over time.
+
+    Returns:
+    - float or np.array: Projected energy requirement (MJ/kg) at time t.
+    """
+    return c * (t ** d)
+
+
+def percentage_change_energy(E_t, E_0):
+    """
+    Calculate the percentage change in energy requirements over time.
+
+    Parameters:
+    - E_t (float or np.array): Future energy requirement (MJ/kg) at time t.
+    - E_0 (float): Baseline energy requirement (MJ/kg) at a reference year.
+
+    Returns:
+    - float or np.array: Percentage increase in energy requirements relative to baseline.
+    """
+    return (E_t - E_0) / E_0
+
+
+def modeling_factor(E_0, E_t):
+    """
+    Calculate the modeling factor to scale energy requirements in LCA models.
+
+    Parameters:
+    - E_0 (float): Baseline energy requirement (MJ/kg) at the reference year.
+    - E_t (float or np.array): Future energy requirement (MJ/kg) at time t.
+
+    Returns:
+    - float or np.array: Modeling factor for scaling energy in LCA.
+    """
+    return E_0 / E_t

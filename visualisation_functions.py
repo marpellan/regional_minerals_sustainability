@@ -52,6 +52,64 @@ def plot_multilca_impacts(df, colors=None, save_path=None):
         plt.show()
 
 
+def plot_multilca_impacts_multidb(specific_lca_results, db_colors=None, save_path=None):
+    """
+    Visualize LCA impacts for each raw material across multiple databases with specified or random colors
+    per database, and save the plot if a path is provided.
+
+    Parameters:
+    - specific_lca_results (dict): Dictionary where keys are database names, and values are DataFrames
+                                   with raw materials as index and impact categories as columns.
+    - db_colors (dict): Dictionary mapping each database to a color. If None, random colors will be assigned.
+    - save_path (str, optional): Path to save the plot image. If None, the plot will only display.
+    """
+    # Get impact categories from the first database DataFrame
+    first_db = next(iter(specific_lca_results.values()))
+    impact_categories = first_db.columns.tolist()
+
+    # Generate random colors for each database if none are provided
+    if db_colors is None:
+        db_colors = {db_name: '#%06X' % random.randint(0, 0xFFFFFF) for db_name in specific_lca_results}
+
+    # Check that we have a color for each database
+    if len(db_colors) != len(specific_lca_results):
+        raise ValueError("The number of colors must match the number of databases.")
+
+    # Set up figure and axes
+    num_materials = len(first_db)
+    fig, axs = plt.subplots(len(impact_categories), 1, figsize=(15, 5 * len(impact_categories)), sharex=True)
+
+    # Create a grouped bar plot for each impact category
+    for i, impact in enumerate(impact_categories):
+        ax = axs[i] if len(impact_categories) > 1 else axs
+
+        # Width and offsets for bars
+        width = 0.15
+        x = range(num_materials)
+
+        # Plot each database for the current impact category
+        for j, (db_name, df) in enumerate(specific_lca_results.items()):
+            # Reset index to get the raw material names as a column
+            df = df.reset_index()
+            ax.bar([pos + j * width for pos in x], df[impact], width=width, label=db_name, color=db_colors[db_name])
+
+        ax.set_ylabel(impact)
+        ax.set_title(f"Comparison of {impact} across Databases")
+        ax.legend(title="Database")
+        ax.set_xticks([pos + width * (len(specific_lca_results) - 1) / 2 for pos in x])
+        ax.set_xticklabels(df["index"], rotation=90)
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save or show plot
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        print(f"Plot saved to {save_path}")
+    else:
+        plt.show()
+
+
 def plot_contribution_analysis(df, inventory_names, colors=None, save_dir="results"):
     """
     Plot contribution analysis for multiple inventories with consistent colors for impact categories
