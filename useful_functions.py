@@ -10,9 +10,31 @@ import math # for pedigree matrix
 
 
 ### LCI ###
+def search_activity(database_name, activity_name, ref_product, location):
+    """
+    Function to find a specific activity based on its name and reference product in a BW database
+    """
+    db = bw.Database(database_name)
+    matches = [ds for ds in db if ds["name"] == activity_name
+               and ds["reference product"] == ref_product
+               and ds["location"] == location]
+
+    if matches:
+        print(f"Match found in {database_name}:")
+        for match in matches:
+            print(match)
+    else:
+        print(
+            f"No match found in {database_name} for activity '{activity_name}', product '{ref_product}', location '{location}'")
+
+
 def get_inventory_dataset(inventories, database_names):
     """
     Function to find the dataset in the specified databases.
+
+    :param inventories: dict in the format (mineral name: activity name, reference product, location)
+    :param database_names: must be a list
+    :return df:
     """
     inventory_ds = {}
     for rm_name, (activity_name, ref_product, location) in inventories.items():
@@ -182,19 +204,19 @@ def multi_contribution_analysis(lca, lcia_methods, top_n=10, threshold=0.01):
 def calculate_projected_impacts(production_df, impact_df, mapping):
     projections = []
 
-    for mineral in production_df['Mineral'].unique():
+    for mineral in production_df['Commodity'].unique():
         # Use the mapping dictionary to get the corresponding raw material
         raw_material = mapping.get(mineral)
 
         if raw_material:
             # Fetch impact factors for the mapped raw material
-            material_impacts = impact_df[impact_df['Mineral'] == raw_material]
+            material_impacts = impact_df[impact_df['Commodity'] == raw_material]
 
             if not material_impacts.empty:
                 impacts_per_kt = material_impacts.iloc[0, 1:].to_dict()  # Extract impact per kilotonne as a dict
 
                 # Filter production data for the mineral
-                mineral_data = production_df[production_df['Mineral'] == mineral]
+                mineral_data = production_df[production_df['Commodity'] == mineral]
 
                 for _, row in mineral_data.iterrows():
                     year = row['Year']
@@ -204,11 +226,15 @@ def calculate_projected_impacts(production_df, impact_df, mapping):
                     annual_impacts = {f"{category}": production_kilotons * impact_per_kt * 1000000
                                       for category, impact_per_kt in impacts_per_kt.items()}
                     annual_impacts['Year'] = year
-                    annual_impacts['Mineral'] = mineral
+                    annual_impacts['Commodity'] = mineral
                     projections.append(annual_impacts)
 
     # Convert list of dictionaries to DataFrame
     projected_impacts_df = pd.DataFrame(projections)
+
+    # Reorder columns to have 'Year' and 'Commodity' first
+    impact_columns = [col for col in projected_impacts_df.columns if col not in ['Year', 'Commodity']]
+    projected_impacts_df = projected_impacts_df[['Year', 'Commodity'] + impact_columns]
 
     return projected_impacts_df
 
